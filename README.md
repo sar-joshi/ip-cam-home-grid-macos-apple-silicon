@@ -2,16 +2,29 @@
 
 A small native macOS viewer for six Dahua NVR channels. Written in Swift and AppKit, with a separate libVLC player for each visible camera. No GridPlayer code or repository was cloned. The app uses the VLC installation you already have at `/Applications/VLC.app`.
 
+Version 0.2 adds a Touch ID/Mac password gate, individual camera Stop/Start, and double-click focus with Escape to restore the grid. Existing camera settings migrate automatically.
+
 ## Start using it
 
-1. Open `HomeGrid.app`. You can move it to Applications; keep VLC installed at `/Applications/VLC.app`.
+1. Open `HomeGrid.app` and authenticate with Touch ID or your Mac login password. You can move it to Applications; keep VLC installed at `/Applications/VLC.app`.
 2. Open **NVR & cameras…**, enter the NVR's local IP address, RTSP port (usually 554), username and password. Enter only the hostname/IP in the address field.
 3. Name the six cameras and set their NVR channel numbers. Choose which cameras to show, then click **Save & apply**. Playback starts automatically.
 4. Select cameras from **Cameras**, and choose 1, 2 or 3 columns. The grid fills the available window; showing six cameras with three columns gives a 3 × 2 layout.
 5. Use each camera's quality menu to choose **Main · 0**, **Sub 1 · 1**, or **Sub 2 · 2**. These change `subtype` in the RTSP request; they do not alter the NVR's encoding settings.
 6. Drag the dotted grip at a tile's top-left onto another tile to swap their positions. The playback views move without reconnecting.
 7. Cameras start muted. Use **Unmute** per camera or **Mute all** globally. Audio must be enabled and supported by the camera/NVR for sound to be available.
-8. **Stop** releases stream connections and decoders. **Start** reconnects the selected cameras. The macOS green window button provides full-screen viewing.
+8. Each tile has **Stop/Start**. Stopping keeps the tile in the grid and releases that camera's connection and decoder. This choice persists across launches. Changing quality on a stopped camera does not resume it.
+9. Double-click a camera's video or title to focus it in the window. Other feeds are hidden and suspended to save decoding work. Press **Escape**, or double-click the focused camera again, to return. Cameras you explicitly stopped stay stopped.
+10. **Stop all/Start all** controls the whole viewing session while preserving individual Stop choices. The macOS green window button provides full-screen viewing.
+11. **Lock**, or **Command–Shift–L**, closes the camera session and requires authentication again. The app also relocks on sleep and macOS session changes.
+
+## App authentication
+
+HomeGrid uses Apple's LocalAuthentication framework and `deviceOwnerAuthentication` policy. Touch ID is available when your Mac has it configured; macOS supplies the Mac login password fallback. The app does not create, collect or store a separate unlock password. Cancelled, failed or unavailable authentication leaves the app locked.
+
+Until authentication succeeds, no camera settings or saved NVR password are loaded and no VLC instance or RTSP connection is started. Locking hides the entire camera interface, closes open settings sheets, stops streams and polling, and drops the app's NVR password reference. A delayed successful reply from an older authentication prompt cannot unlock a new session. Every launch requires authentication.
+
+The NVR's viewing account remains separate from your Mac login. The OS may ask you to allow the updated, locally signed app to access the existing Keychain password. LocalAuthentication is an app access gate; the NVR still enforces its own authentication.
 
 The password is stored in macOS Keychain, under service `local.homegrid.nvr`. Other preferences are saved to `~/Library/Application Support/HomeGrid/settings.json`, with owner-only file permissions. Camera order, visibility, names, channels, quality, mute, column count, connection details and buffer size persist. On the next launch, saved selected cameras reconnect automatically. A blank password field keeps the saved password for the same NVR/account. Enter the password again if you change the address, port or username. RTSP URLs and passwords are not written to application logs or settings.
 
@@ -42,7 +55,7 @@ The app uses RTSP over TCP and a 350 ms buffer by default. If playback stutters,
 - Automatic retry for connection failures and stalled video.
 - Direct RTSP input only. No recording, playback timeline, PTZ, motion detection or cloud service.
 
-This is a locally built, ad hoc signed application, not an Apple-notarized distribution. Its executable is about 324 KB in this build; VLC supplies the media engine separately. It currently assumes one NVR/account for all six channels. Source is included so the app can be reviewed and rebuilt.
+This is a locally built, ad hoc signed application, not an Apple-notarized distribution. Its app bundle is about 396 KB in this build; VLC supplies the media engine separately. It currently assumes one NVR/account for all six channels. Source is included so the app can be reviewed and rebuilt. Hardware decoding is requested from VLC, stopped/hidden-in-focus streams release their decoders, the media engine is initialized only when playback is needed, and idle/locked sessions have no polling timer. Status labels update only when their text changes.
 
 The app does not need the Dahua serial-number QR code. For home-network use, no router forwarding or internet deployment is needed. RTSP in this version is not encrypted; keep access on your trusted home network. A camera account limited to live viewing is a suitable choice.
 
@@ -66,10 +79,16 @@ open HomeGrid.app
 ./test.sh
 ```
 
-Model tests cover escaping special characters in credentials, all three subtype values, settings round-trips and validation. They do not read or write your NVR password.
+Automated tests cover credential escaping, all three subtype values, settings migration and persistence, per-camera stop, focus/restore behavior, and playback exclusion while locked. Authentication tests use a fake provider to cover denial, cancellation, success and stale callback rejection. Native session tests confirm that settings, Keychain reads, camera tiles and media resources are gated by authentication, and that relocking clears the session. They never read your actual NVR password.
 
-For a six-player playback test, supply a synthetic H.264 RTSP stream at `rtsp://127.0.0.1:8554/test` and run `./test.sh --rtsp`. To test an intentional server interruption, set `HOMEGRID_TEST_FIXTURE` to an H.264 MP4 file and run `./test.sh --reconnect`. That test owns its local VLC server, stops it, restarts it and checks that all six players recover. Port 8554 must be free. These tests do not access the NVR or its saved credentials.
+For a six-player playback test, supply a synthetic H.264 RTSP stream at `rtsp://127.0.0.1:8554/test` and run `./test.sh --rtsp`. To test an intentional server interruption, set `HOMEGRID_TEST_FIXTURE` to an H.264 MP4 file of at least 120 seconds and run `./test.sh --reconnect`. That test owns its local VLC server, verifies individual Stop and focus release the native player resources, stops and restarts the server, and checks that all six players recover. Port 8554 must be free. These tests do not access the NVR or its saved credentials. A physical Touch ID/password approval is performed by the Mac's owner; automated tests never bypass the production authentication gate.
 
-Verified in this session: compilation and launch; native grid/settings UI; URL and settings tests; six simultaneous local RTSP players; stop/start and reconnection. After the NVR was configured locally by you, all six real camera tiles reported **Live**. Main/Sub 2 codec and resolution limits still depend on the camera/NVR configuration; no encoder settings were changed by the app.
+The original version was verified against six real NVR streams. Version 0.2 passes local model, authentication, native session and six-feed RTSP tests, including focus, per-camera stop/resume and server restart recovery. Main/Sub 2 codec and resolution limits depend on the camera/NVR configuration; no encoder settings are changed by the app.
+
+## Repository workflow
+
+Source is tracked at [ip-cam-home-grid-macos-apple-silicon](https://github.com/sar-joshi/ip-cam-home-grid-macos-apple-silicon). Make changes on feature branches, submit pull requests, and merge only after **Build and tests** passes. CI builds on an Apple Silicon macOS runner and uses a synthetic local camera fixture; no home camera credentials are provided to CI. GitHub actions are pinned to commit SHAs and workflow permissions are read-only. Compiled apps, preferences, media fixtures, logs and `.env` files are excluded from Git. The build artifact is an ad hoc signed app that still requires VLC.
+
+The future browser project is tracked separately at [ip-cam-home-grid-webapp](https://github.com/sar-joshi/ip-cam-home-grid-webapp); its Vercel deployment will use that repository when the web app is implemented.
 
 Reference: [GridPlayer's architecture and features](https://github.com/vzhd1701/gridplayer), and [Dahua's RTSP channel/subtype documentation](https://dahuawiki.com/index.php?title=Remote_Access%2FRTSP_via_VLC).

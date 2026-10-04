@@ -17,7 +17,7 @@ EOF
 swiftc -swift-version 5 -O -target "$(uname -m)-apple-macosx13.0" \
   -I .build/CVLC -Xcc -I -Xcc "$vlc_root/include" -L "$vlc_root/lib" -lvlc \
   -Xlinker -rpath -Xlinker "$vlc_root/lib" \
-  -framework AppKit -framework Security Sources/*.swift \
+  -framework AppKit -framework Security -framework LocalAuthentication Sources/*.swift \
   -o HomeGrid.app/Contents/MacOS/HomeGrid
 cp Info.plist HomeGrid.app/Contents/Info.plist
 codesign --force --sign - HomeGrid.app
