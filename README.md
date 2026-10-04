@@ -15,7 +15,7 @@ Version 0.2 adds a Touch ID/Mac password gate, individual camera Stop/Start, and
 7. Cameras start muted. Use **Unmute** per camera or **Mute all** globally. Audio must be enabled and supported by the camera/NVR for sound to be available.
 8. Each tile has **Stop/Start**. Stopping keeps the tile in the grid and releases that camera's connection and decoder. This choice persists across launches. Changing quality on a stopped camera does not resume it.
 9. Double-click a camera's video or title to focus it in the window. Other feeds are hidden and suspended to save decoding work. Press **Escape**, or double-click the focused camera again, to return. Cameras you explicitly stopped stay stopped.
-10. **Stop all/Start all** controls the whole viewing session while preserving individual Stop choices. The macOS green window button provides full-screen viewing.
+10. **Stop all** stops every camera and saves each Stop choice. Starting one tile afterward resumes only that camera. **Start all** explicitly resumes all selected cameras. The macOS green window button provides full-screen viewing.
 11. **Lock**, or **Command–Shift–L**, closes the camera session and requires authentication again. The app also relocks on sleep and macOS session changes.
 
 ## App authentication
