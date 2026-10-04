@@ -273,7 +273,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     @objc func togglePlayback() {
         guard viewing.unlocked else { return }
         if !running && (settings.host.isEmpty || password.isEmpty) { openSettings(); return }
-        running.toggle(); rebuildGrid()
+        running.toggle()
+        // A global stop must update the per-camera state too: starting one tile
+        // then resumes only that camera, rather than the old global session.
+        for index in settings.cameras.indices { settings.cameras[index].streaming = running }
+        persist(); rebuildGrid()
     }
     @objc func openSettings() {
         guard viewing.unlocked else { return }

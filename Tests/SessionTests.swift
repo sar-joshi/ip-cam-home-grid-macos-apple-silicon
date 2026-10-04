@@ -39,10 +39,30 @@ final class SessionAuthenticator: DeviceAuthenticating {
         controller.window.contentView?.layoutSubtreeIfNeeded()
         precondition(controller.grid.tiles.filter { !$0.isHidden }.count == 6)
         precondition(!controller.settings.cameras[0].streaming) // Focus never resumes an explicitly stopped camera.
+        controller.running = true
+        controller.togglePlayback() // Stop all records each camera as stopped.
+        precondition(controller.settings.cameras.allSatisfy { !$0.streaming })
+        // Keep the fixture hidden so this controller test allocates no decoder
+        // and never connects to a network or reads the real Keychain.
+        for index in controller.settings.cameras.indices { controller.settings.cameras[index].enabled = false }
+        controller.password = "synthetic-test-only"
+        tile.onStreaming?(true)
+        precondition(controller.running)
+        precondition(controller.settings.cameras.filter(\.streaming).map(\.id) == [camera.id])
+        let persisted = try store.load()
+        precondition(persisted.cameras.filter(\.streaming).map(\.id) == [camera.id])
+        var visible = controller.settings.cameras
+        for index in visible.indices { visible[index].enabled = true }
+        precondition(visible.filter { controller.viewing.shouldPlay($0) }.map(\.id) == [camera.id])
+        controller.togglePlayback() // Stop all, then explicit Start all.
+        controller.togglePlayback()
+        precondition(controller.settings.cameras.allSatisfy(\.streaming))
+        controller.togglePlayback()
+        precondition(controller.engine == nil && controller.timer == nil)
         controller.lockForSystem()
         precondition(controller.tiles.isEmpty && controller.password.isEmpty && controller.engine == nil && controller.timer == nil)
         controller.openSettings(); precondition(controller.window.attachedSheet == nil)
-        print("PASS: no settings, credentials or playback before authentication; focus layout; stopped-camera preservation; complete relock cleanup.")
+        print("PASS: authentication gate; focus; Stop all then individual Start; explicit Start all; persisted stop choices; complete relock cleanup.")
         if let monitor = controller.eventMonitor { NSEvent.removeMonitor(monitor) }
         NSWorkspace.shared.notificationCenter.removeObserver(controller)
         controller.window.orderOut(nil)
