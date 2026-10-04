@@ -33,6 +33,7 @@ final class CameraPlayer {
     private var retryAt = Date.distantPast
     private var attempt = 0
     private var disposed = false
+    private var lastStatus = ""
     var onStatus: ((String) -> Void)?
 
     init(engine: VLCEngine, canvas: NSView) { self.engine = engine; self.canvas = canvas }
@@ -44,7 +45,11 @@ final class CameraPlayer {
             self.start()
         }
     }
-    private func status(_ text: String) { DispatchQueue.main.async { self.onStatus?(text) } }
+    private func status(_ text: String) {
+        guard text != lastStatus else { return }
+        lastStatus = text
+        DispatchQueue.main.async { self.onStatus?(text) }
+    }
     private func releasePlayer() {
         if let p = player {
             libvlc_media_player_stop(p)
@@ -102,6 +107,15 @@ final class CameraPlayer {
     }
     func stop() {
         queue.async { self.desiredURL = nil; self.releasePlayer(); self.status("Stopped") }
+    }
+    // Inspect on the owning queue; useful for confirming that Stop released decoding resources.
+    func inspect(completion: @escaping (Bool, Int32) -> Void) {
+        queue.async {
+            var stats = libvlc_media_stats_t()
+            if let m = self.media { _ = libvlc_media_get_stats(m, &stats) }
+            let allocated = self.player != nil
+            DispatchQueue.main.async { completion(allocated, stats.i_decoded_video) }
+        }
     }
     func dispose(completion: (() -> Void)? = nil) {
         onStatus = nil

@@ -36,13 +36,15 @@ final class CameraTile: NSView {
     let status = label("Stopped", size: 11)
     let quality = NSPopUpButton()
     let mute = NSButton()
+    let streamButton = NSButton()
     let handle = DragHandle()
     var camera: Camera
     var player: CameraPlayer?
-    var isPlaying = false
+    var isPlaying = false { didSet { streamButton.title = isPlaying ? "Stop" : "Start" } }
     var onQuality: ((StreamQuality) -> Void)?
     var onMute: ((Bool) -> Void)?
     var onSwap: ((UUID, UUID) -> Void)?
+    var onStreaming: ((Bool) -> Void)?
     var dropHighlight = false
 
     init(camera: Camera) {
@@ -53,9 +55,11 @@ final class CameraTile: NSView {
         quality.font = .systemFont(ofSize: 11)
         mute.bezelStyle = .rounded; mute.target = self; mute.action = #selector(toggleMute)
         mute.font = .systemFont(ofSize: 11)
+        streamButton.bezelStyle = .rounded; streamButton.font = .systemFont(ofSize: 11)
+        streamButton.target = self; streamButton.action = #selector(toggleStreaming)
         status.textColor = .secondaryLabelColor
         canvas.autoresizesSubviews = true
-        [canvas, title, status, quality, mute, handle].forEach(addSubview)
+        [canvas, title, status, quality, mute, streamButton, handle].forEach(addSubview)
         registerForDraggedTypes([cameraDragType])
         update(camera)
     }
@@ -63,7 +67,7 @@ final class CameraTile: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.setFill(); bounds.fill()
         NSColor(white: 0.13, alpha: 1).setFill()
-        NSRect(x: 0, y: 0, width: bounds.width, height: 44).fill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: 68).fill()
         if dropHighlight {
             NSColor.controlAccentColor.setStroke()
             let path = NSBezierPath(rect: bounds.insetBy(dx: 2, dy: 2)); path.lineWidth = 4; path.stroke()
@@ -71,12 +75,15 @@ final class CameraTile: NSView {
     }
     override func layout() {
         super.layout()
-        handle.frame = NSRect(x: 6, y: 6, width: 25, height: 32)
-        title.frame = NSRect(x: 36, y: 6, width: max(40, bounds.width - 240), height: 18)
-        status.frame = NSRect(x: 36, y: 25, width: max(40, bounds.width - 200), height: 15)
-        quality.frame = NSRect(x: bounds.width - 196, y: 10, width: 119, height: 26)
-        mute.frame = NSRect(x: bounds.width - 74, y: 10, width: 68, height: 26)
-        canvas.frame = NSRect(x: 0, y: 44, width: bounds.width, height: max(0, bounds.height - 44))
+        handle.frame = NSRect(x: 6, y: 4, width: 25, height: 28)
+        title.frame = NSRect(x: 36, y: 8, width: max(40, bounds.width - 210), height: 18)
+        title.lineBreakMode = .byTruncatingTail
+        status.frame = NSRect(x: bounds.width - 165, y: 10, width: 155, height: 15)
+        status.alignment = .right
+        quality.frame = NSRect(x: 36, y: 35, width: 119, height: 26)
+        mute.frame = NSRect(x: 161, y: 35, width: 68, height: 26)
+        streamButton.frame = NSRect(x: 235, y: 35, width: 68, height: 26)
+        canvas.frame = NSRect(x: 0, y: 68, width: bounds.width, height: max(0, bounds.height - 68))
     }
     func update(_ camera: Camera) {
         self.camera = camera; handle.cameraID = camera.id
@@ -84,9 +91,11 @@ final class CameraTile: NSView {
         title.toolTip = "NVR channel \(camera.channel). Drag the grip to another camera to swap positions."
         quality.selectItem(at: camera.quality.rawValue)
         mute.title = camera.muted ? "Unmute" : "Mute"
+        streamButton.title = isPlaying ? "Stop" : "Start"
     }
     @objc private func changeQuality() { if let q = StreamQuality(rawValue: quality.indexOfSelectedItem) { onQuality?(q) } }
     @objc private func toggleMute() { onMute?(!camera.muted) }
+    @objc private func toggleStreaming() { onStreaming?(!isPlaying) }
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard let raw = sender.draggingPasteboard.string(forType: cameraDragType), let id = UUID(uuidString: raw), id != camera.id else { return [] }
         dropHighlight = true; needsDisplay = true; return .move
@@ -103,10 +112,17 @@ final class GridView: NSView {
     override var isFlipped: Bool { true }
     var columns = 3 { didSet { needsLayout = true } }
     var tiles: [CameraTile] = [] { didSet { needsLayout = true } }
+    var focusedID: UUID? { didSet { needsLayout = true } }
     override func draw(_ dirtyRect: NSRect) { NSColor(white: 0.07, alpha: 1).setFill(); bounds.fill() }
     override func layout() {
         super.layout()
         guard !tiles.isEmpty else { return }
+        if let focusedID, let focused = tiles.first(where: { $0.camera.id == focusedID }) {
+            for tile in tiles { tile.isHidden = tile !== focused }
+            focused.frame = bounds.insetBy(dx: 8, dy: 8); focused.needsLayout = true
+            return
+        }
+        tiles.forEach { $0.isHidden = false }
         let cols = min(columns, tiles.count), rows = (tiles.count + cols - 1) / cols
         let gap: CGFloat = 8
         let width = (bounds.width - CGFloat(cols + 1) * gap) / CGFloat(cols)
@@ -128,6 +144,7 @@ final class SettingsEditor {
     private let cache: NSTextField
     private var cameraRows: [(NSTextField, NSTextField, NSButton)] = []
     private let alert = NSAlert()
+    private var cancelled = false
     var onSave: ((Settings, String?) throws -> Void)?
 
     init(settings: Settings) {
@@ -167,8 +184,9 @@ final class SettingsEditor {
         alert.accessoryView = view
     }
     func show(on window: NSWindow) {
+        guard !cancelled else { return }
         alert.beginSheetModal(for: window) { [self] response in
-            guard response == .alertFirstButtonReturn else { return }
+            guard !cancelled, response == .alertFirstButtonReturn else { return }
             do {
                 var updated = initial
                 updated.host = host.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -191,4 +209,5 @@ final class SettingsEditor {
             }
         }
     }
+    func cancel() { cancelled = true; password.stringValue = "" }
 }

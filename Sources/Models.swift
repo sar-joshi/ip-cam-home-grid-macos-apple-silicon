@@ -13,6 +13,33 @@ struct Camera: Codable, Equatable {
     var enabled = true
     var quality: StreamQuality = .balanced
     var muted = true
+    var streaming = true
+
+    init(name: String, channel: Int) { self.name = name; self.channel = channel }
+
+    private enum CodingKeys: String, CodingKey { case id, name, channel, enabled, quality, muted, streaming }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        channel = try values.decode(Int.self, forKey: .channel)
+        enabled = try values.decode(Bool.self, forKey: .enabled)
+        quality = try values.decode(StreamQuality.self, forKey: .quality)
+        muted = try values.decode(Bool.self, forKey: .muted)
+        // Preferences saved by version 0.1 did not have a per-camera stop state.
+        streaming = try values.decodeIfPresent(Bool.self, forKey: .streaming) ?? true
+    }
+}
+
+struct ViewingState {
+    var unlocked = false
+    var running = false
+    var focusedID: UUID?
+    mutating func toggleFocus(_ id: UUID) { focusedID = focusedID == id ? nil : id }
+    mutating func restoreGrid() { focusedID = nil }
+    func shouldPlay(_ camera: Camera) -> Bool {
+        unlocked && running && camera.enabled && camera.streaming && (focusedID == nil || focusedID == camera.id)
+    }
 }
 
 struct Settings: Codable {
