@@ -8,8 +8,8 @@ guard CommandLine.arguments.count == 2 else {
 let output = URL(fileURLWithPath: CommandLine.arguments[1], isDirectory: true)
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 let colorSpace = CGColorSpace(name: CGColorSpace.sRGB)!
-let background = CGColor(colorSpace: colorSpace, components: [23 / 255, 34 / 255, 42 / 255, 1])!
-let foreground = CGColor(colorSpace: colorSpace, components: [168 / 255, 211 / 255, 215 / 255, 1])!
+let background = CGColor(colorSpace: colorSpace, components: [CGFloat(23) / 255, CGFloat(34) / 255, CGFloat(42) / 255, 1])!
+let foreground = CGColor(colorSpace: colorSpace, components: [CGFloat(168) / 255, CGFloat(211) / 255, CGFloat(215) / 255, 1])!
 
 for points in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
