@@ -4,6 +4,8 @@ A small native macOS viewer for six Dahua NVR channels. Written in Swift and App
 
 Version 0.2 adds a Touch ID/Mac password gate, individual camera Stop/Start, and double-click focus with Escape to restore the grid. Existing camera settings migrate automatically.
 
+Version 0.2.2 adds the matching HomeGrid web icon in Finder and the Dock. The build generates all standard and Retina icon sizes with AppKit and `iconutil`; it requires no additional dependency.
+
 ## Start using it
 
 1. Open `HomeGrid.app` and authenticate with Touch ID or your Mac login password. You can move it to Applications; keep VLC installed at `/Applications/VLC.app`.
