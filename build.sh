@@ -6,7 +6,9 @@ if [[ ! -f "$vlc_root/include/vlc/vlc.h" ]]; then
   print -u2 'Install VLC from https://www.videolan.org/vlc/ at /Applications/VLC.app first.'
   exit 1
 fi
-mkdir -p .build/CVLC HomeGrid.app/Contents/MacOS
+mkdir -p .build/CVLC HomeGrid.app/Contents/MacOS HomeGrid.app/Contents/Resources
+swift Scripts/GenerateAppIcon.swift .build/AppIcon.iconset
+iconutil -c icns .build/AppIcon.iconset -o HomeGrid.app/Contents/Resources/AppIcon.icns
 cat > .build/CVLC/module.modulemap <<EOF
 module CVLC [system] {
   header "$vlc_root/include/vlc/vlc.h"
