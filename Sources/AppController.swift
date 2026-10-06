@@ -23,6 +23,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var resumeAfterUnlock: Bool?
     var eventMonitor: Any?
 
+    var hasPlaybackRequests: Bool {
+        running && settings.cameras.contains { $0.enabled && $0.streaming }
+    }
+
     override convenience init() {
         self.init(authenticator: LocalDeviceAuthenticator())
     }
@@ -216,9 +220,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
         grid.columns = settings.columns; grid.focusedID = viewing.focusedID
         grid.tiles = active.compactMap { tiles[$0.id] }
         camerasButton.title = "Cameras · \(active.count)/6"
-        startButton.title = running ? "Stop all" : "Start all"
+        startButton.title = hasPlaybackRequests ? "Stop all" : "Start all"
         note.stringValue = viewing.focusedID != nil ? "Focused camera · Esc restores grid" :
-            active.isEmpty ? "No cameras selected" : running ? "Double-click to focus · drag grips to swap" : "Ready · select cameras and start"
+            active.isEmpty ? "No cameras selected" : hasPlaybackRequests ? "Double-click to focus · drag grips to swap" : "Ready · select cameras and start"
         if settings.host.isEmpty { note.stringValue = "Set up your NVR to begin" }
         let hasPlayers = tiles.values.contains(where: { $0.isPlaying })
         if hasPlayers && timer == nil {
@@ -272,8 +276,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     @objc func togglePlayback() {
         guard viewing.unlocked else { return }
-        if !running && (settings.host.isEmpty || password.isEmpty) { openSettings(); return }
-        running.toggle()
+        let shouldStart = !hasPlaybackRequests
+        if shouldStart && (settings.host.isEmpty || password.isEmpty) { openSettings(); return }
+        running = shouldStart
         // A global stop must update the per-camera state too: starting one tile
         // then resumes only that camera, rather than the old global session.
         for index in settings.cameras.indices { settings.cameras[index].streaming = running }
