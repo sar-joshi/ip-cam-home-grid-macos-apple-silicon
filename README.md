@@ -6,6 +6,8 @@ Version 0.2 adds a Touch ID/Mac password gate, individual camera Stop/Start, and
 
 Version 0.2.2 adds the matching HomeGrid web icon in Finder and the Dock. The build generates all standard and Retina icon sizes with AppKit and `iconutil`; it requires no additional dependency.
 
+Version 0.2.3 shows **Start all** when every selected camera is stopped, including on launch with saved stop choices. One click starts the selected grid; **Stop all** is shown while any selected camera requests playback, including connecting or reconnecting feeds.
+
 ## Start using it
 
 1. Open `HomeGrid.app` and authenticate with Touch ID or your Mac login password. You can move it to Applications; keep VLC installed at `/Applications/VLC.app`.
